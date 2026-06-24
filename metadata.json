@@ -1,0 +1,8 @@
+{
+  "name": "CampusCare",
+  "description": "A comprehensive, responsive campus support portal where students can raise service concerns, track real-time resolution timelines, and admins can manage complaints, upload records, and broadcast campus announcements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
