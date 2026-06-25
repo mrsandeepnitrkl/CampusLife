@@ -7,6 +7,7 @@ import express from "express";
 import path from "path";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
 import {
   readDatabase,
   writeDatabase,
@@ -26,6 +27,16 @@ import {
 
 const app = express();
 const PORT = 3000;
+
+// Initialize Supabase Server-side Client
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+const supabaseServer = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
 
 // Set up larger limits for base64 file uploads
 app.use(express.json({ limit: "50mb" }));
@@ -58,13 +69,59 @@ function rateLimiter(req: express.Request, res: express.Response, next: express.
 app.use("/api", rateLimiter);
 
 // Auth middleware
-function authenticate(req: express.Request, res: express.Response, next: express.NextFunction) {
+async function authenticate(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers["authorization"];
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Access denied. No token provided." });
   }
 
   const token = authHeader.split(" ")[1];
+
+  // If Supabase is configured and the token contains dots (JWT), verify with Supabase Server
+  if (token.includes(".") && supabaseServer) {
+    try {
+      const { data: { user: sbUser }, error } = await supabaseServer.auth.getUser(token);
+      
+      if (error || !sbUser) {
+        return res.status(401).json({ error: "Invalid Supabase authentication token or session expired." });
+      }
+
+      const email = sbUser.email || "";
+      const users = dbOperations.getUsers();
+      let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+      if (!user) {
+        // Auto-provision user profile in local database
+        const isEmailAdmin = email.toLowerCase().includes("admin") || email.toLowerCase() === "admin@campuscare.edu";
+        const newRole = isEmailAdmin ? UserRole.ADMIN : UserRole.STUDENT;
+
+        user = {
+          id: sbUser.id,
+          user_id: email.split("@")[0] || sbUser.id,
+          name: sbUser.user_metadata?.name || sbUser.user_metadata?.full_name || email.split("@")[0] || "Supabase Student",
+          email: email,
+          department: sbUser.user_metadata?.department || (isEmailAdmin ? "Administration Office" : "Computer Science"),
+          password_hash: "supabase_auth_managed",
+          role: newRole,
+          status: "active",
+          created_at: new Date().toISOString()
+        };
+        dbOperations.addUser(user);
+      }
+
+      if (user.status === "inactive") {
+        return res.status(401).json({ error: "User is suspended or deactivated." });
+      }
+
+      (req as any).user = user;
+      return next();
+    } catch (err) {
+      console.error("Supabase authentication server-side verification error:", err);
+      return res.status(401).json({ error: "Internal Supabase authorization failure." });
+    }
+  }
+
+  // Fallback to offline sandbox session
   const session = ACTIVE_SESSIONS.get(token);
 
   if (!session || Date.now() > session.expiresAt) {
