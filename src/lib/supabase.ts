@@ -21,6 +21,8 @@ const supabaseAnonKey =
 function isValidSupabaseConfig(url: string, key: string): boolean {
   if (!url || !key) return false;
   if (url.includes("placeholder") || url.includes("YOUR_") || url.includes("MY_") || url === "MY_APP_URL") return false;
+  const trimmedKey = key.trim();
+  if (!trimmedKey.startsWith("eyJ") && !trimmedKey.startsWith("sb_publishable_") && !trimmedKey.startsWith("sb_secret_")) return false;
   try {
     const parsed = new URL(url.trim());
     return parsed.protocol === "http:" || parsed.protocol === "https:";
