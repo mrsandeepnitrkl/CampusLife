@@ -573,6 +573,39 @@ app.post("/api/admin/users/toggle", authenticate, requireAdmin, (req, res) => {
   res.json({ success: true, status: newStatus });
 });
 
+app.post("/api/admin/users/update", authenticate, requireAdmin, (req, res) => {
+  const { id, user_id, name, department, email, role } = req.body;
+
+  if (!id || !user_id || !name || !email) {
+    return res.status(400).json({ error: "User ID, Login ID, Name, and Email are required." });
+  }
+
+  const users = dbOperations.getUsers();
+  const user = users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found." });
+  }
+
+  // Prevent modifying critical fields for primary system administrators
+  if ((user.user_id === "admin" || user.user_id === "sandeepiitp") && (user_id !== user.user_id || role !== "admin")) {
+    return res.status(400).json({ error: "Cannot change login ID or demote the primary system administrator." });
+  }
+
+  if (users.some(u => u.id !== id && u.user_id.toLowerCase() === user_id.toLowerCase())) {
+    return res.status(400).json({ error: "This Login ID is already in use by another user." });
+  }
+
+  dbOperations.updateUser(id, {
+    user_id,
+    name,
+    department: department || "Academic Block",
+    email,
+    role: role || UserRole.STUDENT
+  });
+
+  res.json({ success: true, message: "User updated successfully." });
+});
+
 app.post("/api/admin/users/bulk-import", authenticate, requireAdmin, (req, res) => {
   const { usersList } = req.body; // Array of { user_id, name, department, email, password, role }
 

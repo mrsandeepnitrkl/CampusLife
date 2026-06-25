@@ -89,6 +89,7 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
   const [newUserRole, setNewUserRole] = useState("student");
   const [userFormError, setUserFormError] = useState("");
   const [userFormSuccess, setUserFormSuccess] = useState("");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Password reset state
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
@@ -231,6 +232,69 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
       setSelectedLogs(data.logs || []);
     } catch (err) {
       console.error("Failed to load logs for complaint:", err);
+    }
+  };
+ 
+  // Edit User Handlers
+  const handleStartEditUser = (usr: User) => {
+    setEditingUser(usr);
+    setNewUserId(usr.user_id);
+    setNewUserName(usr.name);
+    setNewUserEmail(usr.email || "");
+    setNewUserDept(usr.department || "Computer Science");
+    setNewUserRole(usr.role);
+    setUserFormError("");
+    setUserFormSuccess("");
+  };
+
+  const handleCancelEditUser = () => {
+    setEditingUser(null);
+    setNewUserId("");
+    setNewUserName("");
+    setNewUserEmail("");
+    setNewUserDept("Computer Science");
+    setNewUserRole("student");
+    setNewUserPassword("");
+    setUserFormError("");
+    setUserFormSuccess("");
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUserFormError("");
+    setUserFormSuccess("");
+
+    if (!editingUser) return;
+
+    if (!newUserId || !newUserName || !newUserEmail) {
+      return setUserFormError("Login ID, Name, and Email are required.");
+    }
+
+    try {
+      const res = await fetch("/api/admin/users/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          id: editingUser.id,
+          user_id: newUserId,
+          name: newUserName,
+          department: newUserDept,
+          email: newUserEmail,
+          role: newUserRole
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setUserFormSuccess(`User profile updated successfully!`);
+      handleCancelEditUser();
+      loadAllData();
+    } catch (err: any) {
+      setUserFormError(err.message || "An error occurred during update.");
     }
   };
 
@@ -999,6 +1063,12 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
                             {usr.status === "active" ? "Deactivate" : "Activate"}
                           </button>
                           <button
+                            onClick={() => handleStartEditUser(usr)}
+                            className="text-xs text-amber-600 dark:text-amber-400 font-semibold hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
                             onClick={() => {
                               setResettingUserId(usr.id);
                               setResetPasswordVal("");
@@ -1051,14 +1121,22 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
 
           {/* Create User & Bulk upload forms */}
           <div className="space-y-6">
-            {/* Create Single User */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            {/* Create or Edit Single User */}
+            <div className={`bg-white dark:bg-slate-900 border rounded-3xl p-6 shadow-sm transition-all duration-300 ${editingUser ? 'border-amber-200 dark:border-amber-900 shadow-amber-50/10' : 'border-slate-100 dark:border-slate-800'}`}>
               <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-1.5">
-                <PlusCircle className="h-4.5 w-4.5 text-blue-600" /> Create Single Record
+                {editingUser ? (
+                  <>
+                    <SlidersHorizontal className="h-4.5 w-4.5 text-amber-600 animate-pulse" /> Edit User Profile
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="h-4.5 w-4.5 text-blue-600" /> Create Single Record
+                  </>
+                )}
               </h3>
-              <form onSubmit={handleCreateUser} className="space-y-3">
-                {userFormSuccess && <p className="p-2.5 bg-emerald-50 text-emerald-800 text-xs rounded">{userFormSuccess}</p>}
-                {userFormError && <p className="p-2.5 bg-rose-50 text-rose-800 text-xs rounded">{userFormError}</p>}
+              <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="space-y-3">
+                {userFormSuccess && <p className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-850 dark:text-emerald-300 text-xs rounded">{userFormSuccess}</p>}
+                {userFormError && <p className="p-2.5 bg-rose-50 dark:bg-rose-950/40 text-rose-850 dark:text-rose-300 text-xs rounded">{userFormError}</p>}
 
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-400">User Login ID *</label>
@@ -1067,9 +1145,13 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
                     required
                     placeholder="e.g. standard student RollNo"
                     value={newUserId}
+                    disabled={editingUser && (editingUser.user_id === "admin" || editingUser.user_id === "sandeepiitp")}
                     onChange={(e) => setNewUserId(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400"
                   />
+                  {editingUser && (editingUser.user_id === "admin" || editingUser.user_id === "sandeepiitp") && (
+                    <p className="text-[10px] text-slate-400 mt-1">Primary system administrator ID cannot be modified.</p>
+                  )}
                 </div>
 
                 <div>
@@ -1080,7 +1162,7 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
                     placeholder="Full legal student/staff name"
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
@@ -1092,7 +1174,7 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
                     placeholder="student@campuscare.edu"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
@@ -1101,46 +1183,71 @@ export default function AdminPortal({ user, token }: AdminPortalProps) {
                   <select
                     value={newUserDept}
                     onChange={(e) => setNewUserDept(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white text-xs"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
                   >
                     <option value="Computer Science">Computer Science</option>
                     <option value="Electronics Engineering">Electronics Engineering</option>
                     <option value="Mechanical block">Mechanical block</option>
                     <option value="Physics block">Physics block</option>
                     <option value="Library Department">Library Department</option>
+                    <option value="Administration Office">Administration Office</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Password Plaintext *</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Provide a strong initial password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
+                {!editingUser && (
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400">Password Plaintext *</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Provide a strong initial password"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-400">System Role</label>
                   <select
                     value={newUserRole}
+                    disabled={editingUser && (editingUser.user_id === "admin" || editingUser.user_id === "sandeepiitp")}
                     onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white text-xs"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400"
                   >
                     <option value="student">Student / User</option>
                     <option value="admin">Administrator</option>
                   </select>
+                  {editingUser && (editingUser.user_id === "admin" || editingUser.user_id === "sandeepiitp") && (
+                    <p className="text-[10px] text-slate-400 mt-1">Primary administrator role cannot be altered.</p>
+                  )}
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-xl text-xs transition-all"
-                >
-                  Register User Record
-                </button>
+                {editingUser ? (
+                  <div className="pt-2 space-y-2">
+                    <button
+                      type="submit"
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 rounded-xl text-xs shadow-sm transition-all"
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditUser}
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 font-semibold py-2 rounded-xl text-xs transition-all"
+                    >
+                      Cancel Edit
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-xl text-xs shadow-sm transition-all pt-2"
+                  >
+                    Register User Record
+                  </button>
+                )}
               </form>
             </div>
 
