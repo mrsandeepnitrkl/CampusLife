@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { User, Complaint, ComplaintPriority, ComplaintStatus, ComplaintLog } from "../types.js";
-import CaptchaComponent from "./CaptchaComponent.jsx";
 import {
   PlusCircle,
   FileText,
@@ -66,9 +65,6 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
   const [priority, setPriority] = useState<ComplaintPriority>(ComplaintPriority.MEDIUM);
   const [attachment, setAttachment] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaAnswer, setCaptchaAnswer] = useState("");
-  const [captchaResetTrigger, setCaptchaResetTrigger] = useState(0);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -238,7 +234,6 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
 
     if (!subject.trim()) return setSubmitError("Subject is required.");
     if (!description.trim()) return setSubmitError("Detailed description is required.");
-    if (!captchaAnswer.trim()) return setSubmitError("Please solve the CAPTCHA security puzzle.");
 
     setSubmitting(true);
 
@@ -255,9 +250,7 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
           description,
           priority,
           attachment,
-          attachment_name: attachmentName,
-          captchaToken,
-          captchaAnswer
+          attachment_name: attachmentName
         })
       });
 
@@ -272,8 +265,6 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
       setDescription("");
       setAttachment(null);
       setAttachmentName(null);
-      setCaptchaAnswer("");
-      setCaptchaResetTrigger(prev => prev + 1);
       
       // Reload lists
       fetchComplaints();
@@ -282,7 +273,6 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
       setTrackNumberInput(data.complaint_number);
     } catch (err: any) {
       setSubmitError(err.message || "An unexpected error occurred.");
-      setCaptchaResetTrigger(prev => prev + 1);
     } finally {
       setSubmitting(false);
     }
@@ -768,15 +758,6 @@ export default function StudentPortal({ user, token }: StudentPortalProps) {
                 )}
               </div>
             </div>
-
-            {/* CAPTCHA Puzzle */}
-            <CaptchaComponent
-              onValidated={(token, answer) => {
-                setCaptchaToken(token);
-                setCaptchaAnswer(answer);
-              }}
-              resetTrigger={captchaResetTrigger}
-            />
 
             {/* Action Buttons */}
             <div className="flex gap-4 pt-4 border-t border-slate-150 dark:border-slate-800">

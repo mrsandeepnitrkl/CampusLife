@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 dotenv.config({ override: true });
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
@@ -41,19 +42,23 @@ if (supabaseUrl.includes("iyfgjyxxfroifgxvulrp")) {
   supabaseUrl = supabaseUrl.replace("iyfgjyxxfroifgxvulrp", "iyfgjyxxfroifgxvwlrp");
 }
 
-const supabaseAnonKey = 
-  process.env.SUPABASE_ANON_KEY || 
-  process.env.VITE_SUPABASE_ANON_KEY || 
+let supabaseAnonKey = 
   process.env.SUPABASE_PUBLISHABLE_KEY || 
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
+  process.env.SUPABASE_ANON_KEY || 
+  process.env.VITE_SUPABASE_ANON_KEY || 
   "";
+
+if (supabaseAnonKey.includes("0G0c3SFz")) {
+  supabaseAnonKey = supabaseAnonKey.replace("0G0c3SFz", "9GOc3SFz");
+}
 
 function isValidSupabaseConfig(url: string, key: string): boolean {
   if (!url || !key) return false;
   if (url.includes("placeholder") || url.includes("YOUR_") || url.includes("MY_") || url === "MY_APP_URL") return false;
   const trimmedKey = key.trim();
-  if (!trimmedKey.startsWith("eyJ") && !trimmedKey.startsWith("sb_publishable_") && !trimmedKey.startsWith("sb_secret_")) return false;
+  if (trimmedKey.includes("placeholder") || trimmedKey.includes("YOUR_") || trimmedKey.includes("MY_")) return false;
   try {
     const parsed = new URL(url.trim());
     return parsed.protocol === "http:" || parsed.protocol === "https:";
@@ -80,7 +85,6 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Store active sessions and CAPTCHAs
 const ACTIVE_SESSIONS = new Map<string, { userId: string; expiresAt: number }>();
-const ACTIVE_CAPTCHAS = new Map<string, { question: string; answer: string; expiresAt: number }>();
 const IP_LIMITS = new Map<string, { count: number; resetTime: number }>();
 
 // Simple IP Rate Limiter
@@ -187,32 +191,9 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   next();
 }
 
-// --- CAPTCHA ENDPOINTS ---
-app.get("/api/captcha/generate", (req, res) => {
-  const num1 = Math.floor(Math.random() * 9) + 1;
-  const num2 = Math.floor(Math.random() * 9) + 1;
-  const operations = ["+", "-"];
-  const op = operations[Math.floor(Math.random() * operations.length)];
-  
-  let question = "";
-  let answer = 0;
-
-  if (op === "+") {
-    question = `Solve: ${num1} + ${num2} = ?`;
-    answer = num1 + num2;
-  } else {
-    question = `Solve: ${Math.max(num1, num2)} - ${Math.min(num1, num2)} = ?`;
-    answer = Math.max(num1, num2) - Math.min(num1, num2);
-  }
-
-  const captchaToken = crypto.randomBytes(16).toString("hex");
-  ACTIVE_CAPTCHAS.set(captchaToken, {
-    question,
-    answer: String(answer),
-    expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
-  });
-
-  res.json({ captchaToken, question });
+// --- CONFIG ENDPOINTS ---
+app.get("/api/auth/config", (req, res) => {
+  res.json({ isSupabaseConfigured });
 });
 
 // --- SUPABASE PROXY ENDPOINTS ---
@@ -268,29 +249,11 @@ app.post("/api/auth/supabase/signup", async (req, res) => {
 
 // --- AUTH ENDPOINTS ---
 app.post("/api/auth/login", (req, res) => {
-  const { user_id, password, captchaToken, captchaAnswer } = req.body;
+  const { user_id, password } = req.body;
 
   if (!user_id || !password) {
     return res.status(400).json({ error: "User ID and password are required." });
   }
-
-  // Validate CAPTCHA
-  if (!captchaToken || !captchaAnswer) {
-    return res.status(400).json({ error: "Please solve the security puzzle (CAPTCHA)." });
-  }
-
-  const captcha = ACTIVE_CAPTCHAS.get(captchaToken);
-  if (!captcha || Date.now() > captcha.expiresAt) {
-    if (captcha) ACTIVE_CAPTCHAS.delete(captchaToken);
-    return res.status(400).json({ error: "CAPTCHA expired. Please request a new one." });
-  }
-
-  if (captcha.answer !== String(captchaAnswer).trim()) {
-    return res.status(400).json({ error: "Incorrect CAPTCHA answer. Please try again." });
-  }
-
-  // Clear used CAPTCHA
-  ACTIVE_CAPTCHAS.delete(captchaToken);
 
   const users = dbOperations.getUsers();
   const hashed = hashPassword(password);

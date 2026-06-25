@@ -9,8 +9,6 @@ import FAQPage from "./components/FAQPage.jsx";
 import StudentPortal from "./components/StudentPortal.jsx";
 import AdminPortal from "./components/AdminPortal.jsx";
 import TrackComponent from "./components/TrackComponent.jsx";
-import CaptchaComponent from "./components/CaptchaComponent.jsx";
-import { supabase, isSupabaseConfigured } from "./lib/supabase.js";
 import {
   ShieldAlert,
   Moon,
@@ -40,14 +38,12 @@ export default function App() {
 
   // Auth Modes & State Toggles
   const [isSignUp, setIsSignUp] = useState(false);
-  const [useSandboxBypass, setUseSandboxBypass] = useState(!isSupabaseConfigured);
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
+  const [useSandboxBypass, setUseSandboxBypass] = useState(true);
 
   // Login Form States
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaAnswer, setCaptchaAnswer] = useState("");
-  const [captchaReset, setCaptchaReset] = useState(0);
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -60,6 +56,18 @@ export default function App() {
 
   // Announcements Ticker list
   const [publicAnnouncements, setPublicAnnouncements] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    fetch("/api/auth/config")
+      .then((res) => res.json())
+      .then((data) => {
+        setIsSupabaseConfigured(!!data.isSupabaseConfigured);
+        setUseSandboxBypass(!data.isSupabaseConfigured);
+      })
+      .catch((err) => {
+        console.error("Failed to load auth config:", err);
+      });
+  }, []);
 
   useEffect(() => {
     // Validate current token
@@ -116,9 +124,6 @@ export default function App() {
     if (!loginId.trim() || !loginPassword.trim()) {
       return setLoginError("Please enter both User ID and Password.");
     }
-    if (!captchaAnswer.trim()) {
-      return setLoginError("Please solve the security verification (CAPTCHA).");
-    }
 
     setLoggingIn(true);
 
@@ -152,10 +157,8 @@ export default function App() {
         // Clean form
         setLoginId("");
         setLoginPassword("");
-        setCaptchaAnswer("");
       } catch (err: any) {
         setLoginError(err.message || "Supabase authentication failed.");
-        setCaptchaReset(prev => prev + 1); // Refresh CAPTCHA
       } finally {
         setLoggingIn(false);
       }
@@ -169,9 +172,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: loginId.trim(),
-          password: loginPassword,
-          captchaToken,
-          captchaAnswer
+          password: loginPassword
         })
       });
 
@@ -188,10 +189,8 @@ export default function App() {
       // Clean form
       setLoginId("");
       setLoginPassword("");
-      setCaptchaAnswer("");
     } catch (err: any) {
       setLoginError(err.message || "An unexpected network error occurred.");
-      setCaptchaReset(prev => prev + 1); // Refresh CAPTCHA
     } finally {
       setLoggingIn(false);
     }
@@ -204,9 +203,6 @@ export default function App() {
 
     if (!signUpName.trim() || !signUpEmail.trim() || !signUpPassword.trim()) {
       return setLoginError("Please fill out all fields.");
-    }
-    if (!captchaAnswer.trim()) {
-      return setLoginError("Please solve the security verification (CAPTCHA).");
     }
 
     setLoggingIn(true);
@@ -237,7 +233,6 @@ export default function App() {
       setSignUpPassword("");
     } catch (err: any) {
       setLoginError(err.message || "Supabase user registration failed.");
-      setCaptchaReset(prev => prev + 1);
     } finally {
       setLoggingIn(false);
     }
@@ -567,15 +562,6 @@ export default function App() {
                           />
                         </div>
 
-                        {/* CAPTCHA validation */}
-                        <CaptchaComponent
-                          onValidated={(token, answer) => {
-                            setCaptchaToken(token);
-                            setCaptchaAnswer(answer);
-                          }}
-                          resetTrigger={captchaReset}
-                        />
-
                         <button
                           type="submit"
                           disabled={loggingIn}
@@ -647,15 +633,6 @@ export default function App() {
                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-semibold"
                           />
                         </div>
-
-                        {/* CAPTCHA validation */}
-                        <CaptchaComponent
-                          onValidated={(token, answer) => {
-                            setCaptchaToken(token);
-                            setCaptchaAnswer(answer);
-                          }}
-                          resetTrigger={captchaReset}
-                        />
 
                         <button
                           type="submit"
