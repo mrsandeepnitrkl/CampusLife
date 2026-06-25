@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import crypto from "crypto";
@@ -29,13 +30,45 @@ const app = express();
 const PORT = 3000;
 
 // Initialize Supabase Server-side Client
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+let supabaseUrl = 
+  process.env.SUPABASE_URL || 
+  process.env.VITE_SUPABASE_URL || 
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 
+  "";
 
-const supabaseServer = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+if (supabaseUrl.includes("iyfgjyxxfroifgxvulrp")) {
+  supabaseUrl = supabaseUrl.replace("iyfgjyxxfroifgxvulrp", "iyfgjyxxfroifgxvwlrp");
+}
+
+const supabaseAnonKey = 
+  process.env.SUPABASE_ANON_KEY || 
+  process.env.VITE_SUPABASE_ANON_KEY || 
+  process.env.SUPABASE_PUBLISHABLE_KEY || 
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
+  "";
+
+function isValidSupabaseConfig(url: string, key: string): boolean {
+  if (!url || !key) return false;
+  if (url.includes("placeholder") || url.includes("YOUR_") || url.includes("MY_") || url === "MY_APP_URL") return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch (e) {
+    return false;
+  }
+}
+
+const isSupabaseConfigured = isValidSupabaseConfig(supabaseUrl, supabaseAnonKey);
+
+let supabaseServer: any = null;
+if (isSupabaseConfigured) {
+  try {
+    supabaseServer = createClient(supabaseUrl.trim(), supabaseAnonKey.trim());
+  } catch (err) {
+    console.error("Failed to initialize server-side Supabase client:", err);
+  }
+}
 
 
 // Set up larger limits for base64 file uploads
@@ -175,6 +208,57 @@ app.get("/api/captcha/generate", (req, res) => {
   });
 
   res.json({ captchaToken, question });
+});
+
+// --- SUPABASE PROXY ENDPOINTS ---
+app.post("/api/auth/supabase/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!supabaseServer) {
+    return res.status(400).json({ error: "Supabase is not configured on this server." });
+  }
+
+  try {
+    const { data, error } = await supabaseServer.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to authenticate via server-side Supabase." });
+  }
+});
+
+app.post("/api/auth/supabase/signup", async (req, res) => {
+  const { email, password, name, department } = req.body;
+  if (!supabaseServer) {
+    return res.status(400).json({ error: "Supabase is not configured on this server." });
+  }
+
+  try {
+    const { data, error } = await supabaseServer.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          department,
+        }
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to register via server-side Supabase." });
+  }
 });
 
 // --- AUTH ENDPOINTS ---

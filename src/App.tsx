@@ -124,16 +124,21 @@ export default function App() {
 
     if (isSupabaseConfigured && !useSandboxBypass) {
       try {
-        if (!supabase) throw new Error("Supabase is not initialized.");
         const email = loginId.includes("@") ? loginId.trim() : `${loginId.trim()}@campuscare.edu`;
         
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: loginPassword,
+        const res = await fetch("/api/auth/supabase/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password: loginPassword
+          })
         });
 
-        if (error) {
-          throw new Error(error.message);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Supabase authentication failed.");
         }
 
         if (!data.session) {
@@ -207,20 +212,21 @@ export default function App() {
     setLoggingIn(true);
 
     try {
-      if (!supabase) throw new Error("Supabase is not initialized.");
-      const { data, error } = await supabase.auth.signUp({
-        email: signUpEmail.trim(),
-        password: signUpPassword,
-        options: {
-          data: {
-            name: signUpName.trim(),
-            department: signUpDepartment,
-          }
-        }
+      const res = await fetch("/api/auth/supabase/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: signUpEmail.trim(),
+          password: signUpPassword,
+          name: signUpName.trim(),
+          department: signUpDepartment
+        })
       });
 
-      if (error) {
-        throw new Error(error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Supabase user registration failed.");
       }
 
       setSignUpSuccess("Registration successful! If confirmation is required, please check your email. Otherwise, you can log in now.");
@@ -240,13 +246,11 @@ export default function App() {
   const handleLogout = () => {
     if (token) {
       // Sign out from Supabase if token is a Supabase JWT (contains dot)
-      if (isSupabaseConfigured && token.includes(".") && supabase) {
-        supabase.auth.signOut().finally(() => {
-          localStorage.removeItem("campuscare_token");
-          setToken(null);
-          setUser(null);
-          setLandingSubView("login");
-        });
+      if (isSupabaseConfigured && token.includes(".")) {
+        localStorage.removeItem("campuscare_token");
+        setToken(null);
+        setUser(null);
+        setLandingSubView("login");
         return;
       }
 
