@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 import express from "express";
 import path from "path";
 import crypto from "crypto";
@@ -127,7 +128,9 @@ async function authenticate(req: express.Request, res: express.Response, next: e
 
       if (!user) {
         // Auto-provision user profile in local database
-        const isEmailAdmin = email.toLowerCase().includes("admin") || email.toLowerCase() === "admin@campuscare.edu";
+        const isEmailAdmin = email.toLowerCase().includes("admin") || 
+                             email.toLowerCase() === "admin@campuscare.edu" || 
+                             email.toLowerCase().startsWith("sandeepiitp");
         const newRole = isEmailAdmin ? UserRole.ADMIN : UserRole.STUDENT;
 
         user = {
